@@ -68,6 +68,8 @@ scrape_configs:
       # port: 9100
     static_configs:
       - targets: ['10.0.0.8:9100', '10.0.0.4:9100']
+      labels:
+        [ 'tools': '10.0.0.8:9100', 'webhook': '10.0.0.4:9100' ]
 #  - job_name: 'pushgateway'
 #    scrape_interval: 10s
 #    dns_sd_configs:
