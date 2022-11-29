@@ -62,13 +62,19 @@ scrape_configs:
     scrape_interval: 5s
 
     # dns_sd_configs:
-    - names:
-      - 'tools'
-      - 'webhook'
+    # - names:
+    #   - 'tools'
+    #   - 'webhook'
     #   type: 'A'
       # port: 9100
     static_configs:
-      - targets: ['10.0.0.8:9100', '10.0.0.4:9100']
+      - targets: ['10.0.0.8:9100']
+        labels:
+            hostname: tools
+    static_configs:
+      - targets: ['10.0.0.4:9100']
+        labels:
+            hostname: webhook
 #  - job_name: 'pushgateway'
 #    scrape_interval: 10s
 #    dns_sd_configs:
