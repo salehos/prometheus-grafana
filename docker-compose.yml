@@ -1,46 +1,82 @@
-## docker-compose.yml ##
-
-version: '3'
+version: '3.8'
 
 volumes:
   prometheus_data: {}
   grafana_data: {}
 
 services:
-
-  alertmanager:
-    container_name: alertmanager
-    hostname: alertmanager
-    image: prom/alertmanager
-    volumes:
-      - ./alertmanager.conf:/etc/alertmanager/alertmanager.conf
-    command:
-      - '--config.file=/etc/alertmanager/alertmanager.conf'
-    ports:
-      - 9093:9093
-
   prometheus:
-    container_name: prometheus
-    hostname: prometheus
     image: prom/prometheus
+    restart: always
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./alert_rules.yml:/etc/prometheus/alert_rules.yml
+      - ./prometheus:/etc/prometheus/
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
-    links:
-      - alertmanager:alertmanager
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
     ports:
-      - 9090:9090
+      - 10.0.0.8:9090:9090
+    links:
+      - cadvisor:cadvisor
+      - alertmanager:alertmanager
+    depends_on:
+      - cadvisor
+
+  node-exporter:
+    image: prom/node-exporter
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - --collector.filesystem.ignored-mount-points
+      - '^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)'
+    ports:
+      - 10.0.0.8:9100:9100
+    restart: always
+    deploy:
+      mode: global
+
+  alertmanager:
+    image: prom/alertmanager
+    restart: always
+    ports:
+      - 10.0.0.8:9093:9093
+    volumes:
+      - ./alertmanager/:/etc/alertmanager/
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - 10.0.0.8:8085:8080
+    restart: always
+    deploy:
+      mode: global
 
   grafana:
-    container_name: grafana
-    hostname: grafana
     image: grafana/grafana
+    user: '472'
+    restart: always
+    environment:
+      GF_INSTALL_PLUGINS: 'grafana-clock-panel,grafana-simple-json-datasource'
     volumes:
-      - ./grafana_datasources.yml:/etc/grafana/provisioning/datasources/all.yaml
-      - ./grafana_config.ini:/etc/grafana/config.ini
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+    env_file:
+      - ./grafana/config.monitoring
     ports:
-      - 3000:3000
+      - 10.0.0.8:3000:3000
+    depends_on:
+      - prometheus
